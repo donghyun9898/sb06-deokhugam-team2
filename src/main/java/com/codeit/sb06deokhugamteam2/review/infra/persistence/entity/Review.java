@@ -1,4 +1,4 @@
-package com.codeit.sb06deokhugamteam2.review.entity;
+package com.codeit.sb06deokhugamteam2.review.infra.persistence.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -12,7 +12,6 @@ import java.util.UUID;
 public class Review {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false)
     private UUID id;
 
