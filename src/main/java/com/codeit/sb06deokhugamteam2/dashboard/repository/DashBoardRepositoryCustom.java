@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface DashBoardRepositoryCustom {
 
-    List<DashBoard> findRankedListByCursor(
+    List<DashBoard> findPopularBookListByCursor(
             RankingType rankingType,
             PeriodType period,
             String cursor,

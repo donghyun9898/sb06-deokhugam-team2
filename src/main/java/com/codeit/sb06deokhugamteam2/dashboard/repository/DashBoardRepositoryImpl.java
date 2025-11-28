@@ -17,7 +17,7 @@ public class DashBoardRepositoryImpl implements DashBoardRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
 
-    public List<DashBoard> findRankedListByCursor(
+    public List<DashBoard> findPopularBookListByCursor(
             RankingType rankingType,
             PeriodType period,
             String cursor,

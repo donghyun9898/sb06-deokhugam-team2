@@ -113,7 +113,7 @@ public class BookService {
 
     public CursorPageResponsePopularBookDto getPopularBooks(PeriodType period, String cursor, Instant after, Sort.Direction direction, Integer limit) {
 
-        List<DashBoard> bookDashboard = dashBoardRepository.findRankedListByCursor(RankingType.BOOK, period, cursor, after, direction, limit);
+        List<DashBoard> bookDashboard = dashBoardRepository.findPopularBookListByCursor(RankingType.BOOK, period, cursor, after, direction, limit);
 
         List<PopularBookDto> popularBookDtoList = new ArrayList<>();
 
