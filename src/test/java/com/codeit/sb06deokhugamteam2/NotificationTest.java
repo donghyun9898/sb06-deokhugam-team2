@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codeit.sb06deokhugamteam2.notification.NotificationComponent;
 import com.codeit.sb06deokhugamteam2.notification.entity.Notification;
+import com.codeit.sb06deokhugamteam2.notification.entity.dto.NotificaionCursorDto;
 import com.codeit.sb06deokhugamteam2.notification.entity.dto.NotificationDto;
 import com.codeit.sb06deokhugamteam2.notification.entity.dto.request.NotificationCreateRequest;
 import com.codeit.sb06deokhugamteam2.notification.entity.dto.request.NotificationUpdateRequest;
+import com.codeit.sb06deokhugamteam2.notification.entity.dto.response.NotificationCursorResponse;
 import com.codeit.sb06deokhugamteam2.notification.repository.NotificationRepository;
 import com.codeit.sb06deokhugamteam2.notification.service.NotificationService;
 import jakarta.transaction.Transactional;
@@ -58,12 +60,16 @@ public class NotificationTest {
   @BeforeEach
   void setup() {
     notificationRepository.deleteAll();
-    NotificationCreateRequest request = new NotificationCreateRequest(UUID.randomUUID()
-        ,UUID.randomUUID()
-        ,"title"
-        ,"content");
 
-    preSetupData = notificationComponent.saveNotification(request);
+    UUID userId = UUID.randomUUID();
+    for(int i = 0; i < 100; i++) {
+      NotificationCreateRequest request = new NotificationCreateRequest(userId
+          ,UUID.randomUUID()
+          ,"title" + i
+          ,"content" + i);
+
+      preSetupData = notificationComponent.saveNotification(request);
+    }
   }
 
   @Test
@@ -164,5 +170,25 @@ public class NotificationTest {
     List<Notification> result = notificationRepository.findByUserId(preSetupData.getUserId()).get();
 
     assertThat(result).isEmpty();
+  }
+
+  @Test
+  @DisplayName("cursor 기반 가져오기 성공 테스트")
+  public void getAllByIdTest()
+  {
+    NotificaionCursorDto dto = NotificaionCursorDto.builder()
+        .userId(preSetupData.getUserId())
+        .direction("desc")
+        .cursor("")
+        .after(null)
+        .limit(20)
+        .build();
+
+    NotificationCursorResponse response = notificationService.getUserNotifications(dto);
+    assertThat(response).isNotNull();
+    assertThat(response.hasNext()).isTrue();
+    assertThat(response.nextCursor()).isNotEmpty();
+    assertThat(response.nextAfter()).isNotNull();
+    assertThat(response.size()).isEqualTo(20);
   }
 }
