@@ -9,10 +9,7 @@ import com.codeit.sb06deokhugamteam2.review.application.port.in.query.ReviewQuer
 import com.codeit.sb06deokhugamteam2.review.application.port.out.ReviewRepository;
 import com.codeit.sb06deokhugamteam2.review.domain.ReviewDomain;
 import com.codeit.sb06deokhugamteam2.user.entity.User;
-import com.querydsl.core.types.Expression;
-import com.querydsl.core.types.Order;
-import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.*;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -72,7 +69,20 @@ public class ReviewJpaRepository implements ReviewRepository {
 
     @Override
     public ReviewDetail findReviewDetailById(UUID reviewId) {
-        return select(Projections.constructor(
+        Predicate[] predicates = {review.id.eq(reviewId), review.deleted.eq(false)};
+        return findReviewDetail(null, predicates).fetchOne();
+    }
+
+    private JPAQuery<ReviewDetail> findReviewDetail(UUID requestUserId, Predicate... predicate) {
+        return select(reviewDetailProjection(requestUserId))
+                .from(review)
+                .innerJoin(review.book, book)
+                .innerJoin(review.user, user)
+                .where(predicate);
+    }
+
+    private static Expression<ReviewDetail> reviewDetailProjection(UUID requestUserId) {
+        return Projections.constructor(
                 ReviewDetail.class,
                 review.id,
                 review.book.id,
@@ -84,18 +94,23 @@ public class ReviewJpaRepository implements ReviewRepository {
                 review.rating,
                 review.likeCount,
                 review.commentCount,
-                Expressions.FALSE,
+                likedByMe(requestUserId),
                 review.createdAt,
                 review.updatedAt
-        ))
-                .from(review)
-                .innerJoin(review.book, book)
-                .innerJoin(review.user, user)
+        );
+    }
+
+    private static BooleanExpression likedByMe(UUID requestUserId) {
+        if (requestUserId == null) {
+            return Expressions.FALSE;
+        }
+        return JPAExpressions.selectOne()
+                .from(reviewLike)
                 .where(
-                        review.id.eq(reviewId),
-                        review.deleted.eq(false)
+                        reviewLike.review.id.eq(review.id),
+                        reviewLike.user.id.eq(requestUserId)
                 )
-                .fetchOne();
+                .exists();
     }
 
     @Override
@@ -106,59 +121,17 @@ public class ReviewJpaRepository implements ReviewRepository {
     }
 
     private List<ReviewDetail> findReviewDetails(ReviewPaginationQuery query) {
-        return select(Projections.constructor(
-                ReviewDetail.class,
-                review.id,
-                review.book.id,
-                book.title,
-                book.thumbnailUrl,
-                review.user.id,
-                user.nickname,
-                review.content,
-                review.rating,
-                review.likeCount,
-                review.commentCount,
-                likedByMe(query.requestUserId()),
-                review.createdAt,
-                review.updatedAt
-        ))
-                .from(review)
-                .innerJoin(review.book, book)
-                .innerJoin(review.user, user)
-                .where(
-                        bookIdEq(query.bookId()),
-                        userIdEq(query.userId()),
-                        keywordContains(query.keyword()),
-                        cursorExpressions(query),
-                        review.deleted.eq(false)
-                )
+        Predicate[] predicates = {
+                bookIdEq(query.bookId()),
+                userIdEq(query.userId()),
+                keywordContains(query.keyword()),
+                cursorExpressions(query),
+                review.deleted.eq(false)
+        };
+        return findReviewDetail(query.requestUserId(), predicates)
                 .orderBy(orderByExpressions(query))
                 .limit(query.limit() + 1)
                 .fetch();
-    }
-
-    private Long findTotalElements(ReviewPaginationQuery query) {
-        Long totalElements = select(review.count())
-                .from(review)
-                .where(
-                        userIdEq(query.userId()),
-                        bookIdEq(query.bookId()),
-                        keywordContains(query.keyword()),
-                        review.deleted.eq(false)
-                )
-                .fetchOne();
-
-        return totalElements == null ? 0L : totalElements;
-    }
-
-    private static BooleanExpression likedByMe(UUID requestUserId) {
-        return JPAExpressions.selectOne()
-                .from(reviewLike)
-                .where(
-                        reviewLike.review.id.eq(review.id),
-                        reviewLike.user.id.eq(requestUserId)
-                )
-                .exists();
     }
 
     private static BooleanExpression bookIdEq(UUID bookId) {
@@ -212,31 +185,24 @@ public class ReviewJpaRepository implements ReviewRepository {
         return orderSpecifiers.toArray(OrderSpecifier[]::new);
     }
 
-    @Override
-    public ReviewDetail findReviewDetail(ReviewQuery query) {
-        return select(Projections.constructor(
-                ReviewDetail.class,
-                review.id,
-                review.book.id,
-                book.title,
-                book.thumbnailUrl,
-                review.user.id,
-                user.nickname,
-                review.content,
-                review.rating,
-                review.likeCount,
-                review.commentCount,
-                likedByMe(query.requestUserId()),
-                review.createdAt,
-                review.updatedAt
-        ))
+    private Long findTotalElements(ReviewPaginationQuery query) {
+        Long totalElements = select(review.count())
                 .from(review)
-                .innerJoin(review.book, book)
-                .innerJoin(review.user, user)
                 .where(
-                        review.id.eq(query.reviewId()),
+                        userIdEq(query.userId()),
+                        bookIdEq(query.bookId()),
+                        keywordContains(query.keyword()),
                         review.deleted.eq(false)
                 )
+                .fetchOne();
+
+        return totalElements == null ? 0L : totalElements;
+    }
+
+    @Override
+    public ReviewDetail findReviewDetail(ReviewQuery query) {
+        Predicate[] predicates = {review.id.eq(query.reviewId()), review.deleted.eq(false)};
+        return findReviewDetail(query.requestUserId(), predicates)
                 .fetchOne();
     }
 }
