@@ -5,12 +5,12 @@ import com.codeit.sb06deokhugamteam2.book.dto.data.BookDto;
 import com.codeit.sb06deokhugamteam2.book.dto.request.BookCreateRequest;
 import com.codeit.sb06deokhugamteam2.book.dto.request.BookImageCreateRequest;
 import com.codeit.sb06deokhugamteam2.book.dto.request.BookUpdateRequest;
+import com.codeit.sb06deokhugamteam2.book.dto.response.CursorPageResponseBookDto;
 import com.codeit.sb06deokhugamteam2.book.dto.response.NaverBookDto;
 import com.codeit.sb06deokhugamteam2.book.service.BookService;
 import com.codeit.sb06deokhugamteam2.common.enums.PeriodType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -56,6 +56,20 @@ public class BookController {
                 Optional.ofNullable(imageData).flatMap(this::resolveBookImageCreateRequest);
         BookDto bookDto = bookService.update(bookId, bookUpdateRequest, bookImageCreateRequest);
         return ResponseEntity.ok(bookDto);
+    }
+
+    @GetMapping
+    public ResponseEntity<CursorPageResponseBookDto> findBooks(
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "orderBy", defaultValue = "title") String orderBy,
+            @RequestParam(value = "direction", defaultValue = "DESC") String direction,
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @RequestParam(value = "after", required = false) Instant nextAfter,
+            @RequestParam(value = "limit", defaultValue = "50") int limit
+            ) {
+        CursorPageResponseBookDto cursorPageResponseBookDto =
+                bookService.findBooks(keyword, orderBy, direction, cursor, nextAfter, limit);
+        return ResponseEntity.ok(cursorPageResponseBookDto);
     }
 
     @GetMapping("/popular")
