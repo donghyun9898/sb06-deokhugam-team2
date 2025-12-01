@@ -4,12 +4,18 @@ import com.codeit.sb06deokhugamteam2.book.client.NaverSearchClient;
 import com.codeit.sb06deokhugamteam2.book.dto.data.BookDto;
 import com.codeit.sb06deokhugamteam2.book.dto.request.BookCreateRequest;
 import com.codeit.sb06deokhugamteam2.book.dto.request.BookUpdateRequest;
+import com.codeit.sb06deokhugamteam2.book.dto.response.CursorPageResponseBookDto;
+import com.codeit.sb06deokhugamteam2.book.dto.response.CursorPageResponsePopularBookDto;
 import com.codeit.sb06deokhugamteam2.book.dto.response.NaverBookDto;
 import com.codeit.sb06deokhugamteam2.book.entity.Book;
+import com.codeit.sb06deokhugamteam2.book.fixture.BookFixture;
 import com.codeit.sb06deokhugamteam2.book.repository.BookRepository;
 import com.codeit.sb06deokhugamteam2.book.storage.S3Storage;
+import com.codeit.sb06deokhugamteam2.common.enums.PeriodType;
+import com.codeit.sb06deokhugamteam2.common.enums.RankingType;
+import com.codeit.sb06deokhugamteam2.dashboard.entity.Dashboard;
+import com.codeit.sb06deokhugamteam2.dashboard.repository.DashboardRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.hibernate.validator.constraints.ISBN;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,8 +30,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,6 +56,9 @@ public class BookIntegrationTest {
 
     @Autowired
     private BookRepository bookRepository;
+
+    @Autowired
+    private DashboardRepository dashBoardRepository;
 
     @MockitoBean
     private NaverSearchClient naverSearchClient;
@@ -189,5 +202,77 @@ public class BookIntegrationTest {
         verify(s3Storage, times(1)).deleteThumbnail(anyString());
         verify(s3Storage, times(1)).putThumbnail(anyString(), any(byte[].class), anyString());
         verify(s3Storage, times(1)).getThumbnail(anyString());
+    }
+
+    @Test
+    @DisplayName("인기도서 조회 API 호출 통합 테스트 - 점수는 더미 데이터")
+    void popularBooks_Success() throws Exception {
+        //given
+        for (int i = 1; i <= 5; i++) {
+            Book book = Book.builder()
+                    .title("title" + i)
+                    .author("author" + i)
+                    .isbn("12345678" + i)
+                    .publisher("publisher" + i)
+                    .publishedDate(LocalDate.now())
+                    .description("description" + i)
+                    .thumbnailUrl("https://test-bucket/test" + i + ".jpg")
+                    .build();
+            UUID bookId = bookRepository.saveAndFlush(book).getId();
+
+            Dashboard dashBoard = Dashboard.builder()
+                    .entityId(bookId)
+                    .rank((long) i)
+                    .score(100 - i)
+                    .createdAt(Instant.now())
+                    .rankingType(RankingType.BOOK)
+                    .periodType(PeriodType.ALL_TIME)
+                    .build();
+            dashBoardRepository.saveAndFlush(dashBoard);
+        }
+
+        //when
+        MvcResult result = mockMvc.perform(MockMvcRequestBuilders.request(HttpMethod.GET, "/api/books/popular?period=ALL_TIME&direction=ASC&limit=4")
+                        .contentType(MediaType.APPLICATION_JSON_VALUE))
+                .andReturn();
+
+        //then
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        String responseBody = result.getResponse().getContentAsString();
+        CursorPageResponsePopularBookDto cursorDto = objectMapper.readValue(responseBody, CursorPageResponsePopularBookDto.class);
+
+        assertThat(cursorDto.size()).isEqualTo(4);
+        assertThat(cursorDto.content().get(0).title()).isEqualTo("title1");
+        assertThat(cursorDto.content().get(3).title()).isEqualTo("title4");
+        assertThat(cursorDto.hasNext()).isTrue();
+        assertThat(cursorDto.nextCursor()).isEqualTo("4");
+        assertThat(cursorDto.nextAfter()).isEqualTo(cursorDto.content().get(3).createdAt());
+    }
+
+    @Test
+    @DisplayName("도서 목록 조회 API 통합 테스트")
+    void findBooks_Success() throws Exception {
+        List<Book> books = BookFixture.createBooks(5);
+        bookRepository.saveAll(books);
+
+        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        params.add("keyword", "title");
+        params.add("orderBy", "title");
+        params.add("direction", "DESC");
+        params.add("limit", "3");
+        MvcResult result = mockMvc.perform(MockMvcRequestBuilders.get("/api/books")
+                        .params(params))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        String responseBody = result.getResponse().getContentAsString();
+        CursorPageResponseBookDto cursorDto = objectMapper.readValue(responseBody, CursorPageResponseBookDto.class);
+
+        assertThat(cursorDto.getSize()).isEqualTo(3);
+        assertThat(cursorDto.getContent().size()).isEqualTo(3);
+        assertThat(cursorDto.getNextCursor()).isNotNull();
+        assertThat(cursorDto.getNextAfter()).isNotNull();
+        assertThat(cursorDto.getTotalElements()).isEqualTo(5);
+        assertThat(cursorDto.getContent().get(0).getTitle()).isGreaterThan(cursorDto.getContent().get(1).getTitle());
     }
 }

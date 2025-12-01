@@ -1,25 +1,38 @@
 package com.codeit.sb06deokhugamteam2.book.service;
 
 import com.codeit.sb06deokhugamteam2.book.client.NaverSearchClient;
-import com.codeit.sb06deokhugamteam2.book.dto.request.BookCreateRequest;
+import com.codeit.sb06deokhugamteam2.book.dto.response.CursorPageResponsePopularBookDto;
+import com.codeit.sb06deokhugamteam2.book.dto.data.PopularBookDto;
 import com.codeit.sb06deokhugamteam2.book.dto.data.BookDto;
+import com.codeit.sb06deokhugamteam2.book.dto.request.BookCreateRequest;
 import com.codeit.sb06deokhugamteam2.book.dto.request.BookImageCreateRequest;
 import com.codeit.sb06deokhugamteam2.book.dto.request.BookUpdateRequest;
+import com.codeit.sb06deokhugamteam2.book.dto.response.CursorPageResponseBookDto;
 import com.codeit.sb06deokhugamteam2.book.dto.response.NaverBookDto;
 import com.codeit.sb06deokhugamteam2.book.entity.Book;
+import com.codeit.sb06deokhugamteam2.book.mapper.BookCursorMapper;
 import com.codeit.sb06deokhugamteam2.book.mapper.BookMapper;
 import com.codeit.sb06deokhugamteam2.book.repository.BookRepository;
 import com.codeit.sb06deokhugamteam2.book.storage.S3Storage;
 import com.codeit.sb06deokhugamteam2.common.exception.ErrorCode;
 import com.codeit.sb06deokhugamteam2.common.exception.exceptions.BookException;
+import com.codeit.sb06deokhugamteam2.common.enums.PeriodType;
+import com.codeit.sb06deokhugamteam2.common.enums.RankingType;
+import com.codeit.sb06deokhugamteam2.dashboard.entity.Dashboard;
+import com.codeit.sb06deokhugamteam2.dashboard.repository.DashboardRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,9 +41,12 @@ import java.util.UUID;
 @Transactional
 @RequiredArgsConstructor
 public class BookService {
+
     private final BookRepository bookRepository;
+    private final DashboardRepository dashBoardRepository;
     private final S3Storage s3Storage;
     private final BookMapper bookMapper;
+    private final BookCursorMapper bookCursorMapper;
     private final NaverSearchClient naverSearchClient;
 
     public BookDto create(BookCreateRequest bookCreateRequest, Optional<BookImageCreateRequest> optionalBookImageCreateRequest) {
@@ -98,14 +114,51 @@ public class BookService {
 
         return bookMapper.toDto(findBook);
     }
+    @Transactional(readOnly = true)
+    public CursorPageResponseBookDto findBooks(String keyword, String orderBy,
+                                               String direction, String cursor, Instant nextAfter, int limit) {
+        long totalElements =
+                keyword == null ? bookRepository.count() : bookRepository.countByKeyword(keyword);
+
+        Slice<Book> bookSlice = bookRepository.findBooks(keyword, orderBy, direction, cursor, nextAfter, limit);
+        Slice<BookDto> bookDtoSlice = bookSlice.map(bookMapper::toDto);
+
+        CursorPageResponseBookDto cursorPageResponseBookDto = CursorPageResponseBookDto.builder()
+                .size(bookDtoSlice.getContent().size())
+                .hasNext(bookDtoSlice.hasNext())
+                .content(bookDtoSlice.getContent())
+                .totalElements(totalElements)
+                .nextCursor(getNextCursor(bookDtoSlice, orderBy))
+                .nextAfter(getNextAfter(bookDtoSlice))
+                .build();
+
+        return cursorPageResponseBookDto;
+    }
+
+    public CursorPageResponsePopularBookDto getPopularBooks(PeriodType period, String cursor, Instant after, Sort.Direction direction, Integer limit) {
+
+        List<Dashboard> bookDashboard = dashBoardRepository.findPopularBookListByCursor(RankingType.BOOK, period, cursor, after, direction, limit);
+
+        List<PopularBookDto> popularBookDtoList = new ArrayList<>();
+
+        bookDashboard.forEach(dashboard -> {
+            Book book = bookRepository.findById(dashboard.getEntityId())
+                    .orElseThrow(() -> new EntityNotFoundException("도서를 찾을 수 없습니다: " + dashboard.getEntityId()));
+            popularBookDtoList.add(
+                    bookMapper.toDto(dashboard, book, period)
+            );
+        });
+
+        return bookCursorMapper.toCursorBookDto(popularBookDtoList, limit);
+    }
 
     public void deleteSoft(UUID bookId) {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new EntityNotFoundException("도서를 찾을 수 없습니다: " + bookId));
 
 //        book.getReviews().forEach(review -> {
-//            review.setDeletedAsTrue();
-//            review.getComments().forEach(Comment::setDeletedAsTrue);
+//            review.deleted();
+//            review.getComments().forEach(Comment::softDelete);
 //        });
 
         book.setDeletedAsTrue();
@@ -116,5 +169,27 @@ public class BookService {
     public void deleteHard(UUID bookId) {
         bookRepository.deleteById(bookId);
         log.info("도서 물리 삭제 완료: {}", bookId);
+    }
+
+    private String getNextCursor(Slice<BookDto> bookDtoSlice, String orderBy) {
+        if (bookDtoSlice.getContent().isEmpty()) {
+            return null;
+        }
+        List<BookDto> bookDtos = bookDtoSlice.getContent();
+        BookDto bookDto = bookDtos.get(bookDtos.size() - 1);
+        return switch (orderBy) {
+            case "publishedDate" -> bookDto.getPublishedDate().toString();
+            case "rating" -> Double.toString(bookDto.getRating());
+            case "reviewCount" -> Integer.toString(bookDto.getReviewCount());
+            default -> bookDto.getTitle();
+        };
+    }
+
+    private Instant getNextAfter(Slice<BookDto> bookDtoSlice) {
+        if (bookDtoSlice.getContent().isEmpty()) {
+            return null;
+        }
+        List<BookDto> bookDtos = bookDtoSlice.getContent();
+        return bookDtos.get(bookDtos.size() - 1).getCreatedAt();
     }
 }
