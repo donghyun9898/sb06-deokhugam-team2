@@ -210,13 +210,13 @@ public class BookService {
                 return matcher.group(0).replaceAll("-", "");
             } else {
                 throw new OcrException(ErrorCode.ISBN_NOT_FOUND,
-                        Map.of("detail", ErrorCode.ISBN_NOT_FOUND.getMessage(), "response text", parsedText),
+                        Map.of("message", ErrorCode.ISBN_NOT_FOUND.getMessage(), "detail", parsedText),
                         HttpStatus.NOT_FOUND);
             }
 
         } catch (IOException e) {
             throw new OcrException(ErrorCode.OCR_API_ERROR,
-                    Map.of("detail", e.getMessage()),
+                    Map.of("message", ErrorCode.OCR_API_ERROR.getMessage()),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -289,7 +289,7 @@ public class BookService {
             return response.body().string();
         } catch (IOException e) {
             throw new OcrException(ErrorCode.OCR_API_ERROR,
-                    Map.of("detail", e.getMessage()),
+                    Map.of("message", ErrorCode.OCR_API_ERROR.getMessage()),
                     HttpStatus.BAD_GATEWAY);
         }
     }
