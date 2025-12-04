@@ -12,8 +12,6 @@ import com.codeit.sb06deokhugamteam2.common.exception.exceptions.CommentExceptio
 import com.codeit.sb06deokhugamteam2.notification.NotificationComponent;
 import com.codeit.sb06deokhugamteam2.notification.entity.dto.request.NotificationCreateRequest;
 import com.codeit.sb06deokhugamteam2.review.adapter.out.entity.Review;
-import com.codeit.sb06deokhugamteam2.review.application.port.out.ReviewRepository;
-import com.codeit.sb06deokhugamteam2.review.domain.exception.DuplicateReviewException;
 import com.codeit.sb06deokhugamteam2.user.entity.User;
 import com.codeit.sb06deokhugamteam2.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
