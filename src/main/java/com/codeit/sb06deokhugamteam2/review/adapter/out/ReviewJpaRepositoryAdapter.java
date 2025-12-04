@@ -28,6 +28,7 @@ import java.util.UUID;
 import static com.codeit.sb06deokhugamteam2.book.entity.QBook.book;
 import static com.codeit.sb06deokhugamteam2.review.adapter.out.entity.QReview.review;
 import static com.codeit.sb06deokhugamteam2.review.adapter.out.entity.QReviewLike.reviewLike;
+import static com.codeit.sb06deokhugamteam2.review.adapter.out.entity.QReviewStat.reviewStat;
 import static com.codeit.sb06deokhugamteam2.user.entity.QUser.user;
 
 @Repository
@@ -62,7 +63,7 @@ public class ReviewJpaRepositoryAdapter implements ReviewRepositoryPort {
     @Override
     @Transactional
     public void save(ReviewDomain review) {
-        Review reviewEntity = reviewMapper.toReview(review);
+        Review reviewEntity = reviewMapper.toEntity(review.toSnapshot());
         Book book = em.getReference(Book.class, review.bookId());
         User user = em.getReference(User.class, review.userId());
         reviewEntity = reviewEntity.book(book).user(user);
@@ -80,6 +81,7 @@ public class ReviewJpaRepositoryAdapter implements ReviewRepositoryPort {
                 .from(review)
                 .innerJoin(review.book, book)
                 .innerJoin(review.user, user)
+                .innerJoin(review.reviewStat, reviewStat)
                 .where(predicates)
                 .fetchOne();
     }
@@ -95,8 +97,8 @@ public class ReviewJpaRepositoryAdapter implements ReviewRepositoryPort {
                 user.nickname,
                 review.content,
                 review.rating,
-                review.likeCount,
-                review.commentCount,
+                review.reviewStat.likeCount,
+                review.reviewStat.commentCount,
                 likedByMe(requestUserId),
                 review.createdAt,
                 review.updatedAt
@@ -244,7 +246,9 @@ public class ReviewJpaRepositoryAdapter implements ReviewRepositoryPort {
     @Override
     public Optional<ReviewDomain> findById(UUID reviewId) {
         Review reviewEntity = em.find(Review.class, reviewId);
-        return Optional.ofNullable(reviewEntity).map(reviewMapper::toReviewDomain);
+        return Optional.ofNullable(reviewEntity)
+                .map(reviewMapper::toDomainSnapshot)
+                .map(ReviewDomain::from);
     }
 
     @Override
@@ -261,7 +265,9 @@ public class ReviewJpaRepositoryAdapter implements ReviewRepositoryPort {
                 .createNativeQuery(sql, Review.class)
                 .setParameter("reviewId", reviewId)
                 .getSingleResult();
-        return Optional.ofNullable(reviewEntity).map(reviewMapper::toReviewDomain);
+        return Optional.ofNullable(reviewEntity)
+                .map(reviewMapper::toDomainSnapshot)
+                .map(ReviewDomain::from);
     }
 
     @Override
@@ -275,9 +281,9 @@ public class ReviewJpaRepositoryAdapter implements ReviewRepositoryPort {
     @Override
     @Transactional
     public void update(ReviewDomain review) {
-        ReviewDomain.Snapshot snapshot = review.createSnapshot();
-        Review reviewEntity = em.find(Review.class, snapshot.id());
-        reviewEntity.rating(snapshot.rating().value())
-                .content(snapshot.content().value());
+        ReviewDomain.Snapshot reviewSnapshot = review.toSnapshot();
+        Review reviewEntity = em.find(Review.class, reviewSnapshot.id());
+        reviewEntity.rating(reviewSnapshot.rating().value())
+                .content(reviewSnapshot.content().value());
     }
 }

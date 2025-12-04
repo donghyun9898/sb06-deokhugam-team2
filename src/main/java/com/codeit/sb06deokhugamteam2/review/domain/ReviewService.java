@@ -7,16 +7,8 @@ import java.util.UUID;
 @Service
 public class ReviewService {
 
-    public ReviewDomain registerReview(
-            UUID userId,
-            ReviewRating rating,
-            ReviewContent content,
-            ReviewBookDomain book
-    ) {
-        UUID bookId = book.id();
-        ReviewDomain review = ReviewDomain.write(bookId, userId, rating, content);
+    public void registerReview(ReviewDomain review, ReviewBookDomain book) {
         book.increaseReviewCount().plusReviewRating(review.rating());
-        return review;
     }
 
     public void deleteReview(ReviewDomain review, UUID requestUserId, ReviewBookDomain book) {
@@ -24,17 +16,15 @@ public class ReviewService {
         book.decreaseReviewCount().minusReviewRating(review.rating());
     }
 
-    public ReviewDomain editReview(
+    public void editReview(
             ReviewDomain review,
-            ReviewRating rating,
-            ReviewContent content,
+            ReviewRating newRating,
+            ReviewContent newContent,
             UUID requestUserId,
             ReviewBookDomain book
     ) {
         ReviewRating oldRating = review.rating();
-        ReviewRating newRating = rating;
-        review.verifyOwner(requestUserId).edit(newRating, content);
+        review.verifyOwner(requestUserId).edit(newRating, newContent);
         book.minusReviewRating(oldRating).plusReviewRating(newRating);
-        return review;
     }
 }

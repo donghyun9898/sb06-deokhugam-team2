@@ -47,6 +47,7 @@ public class ReviewCommandService implements CreateReviewUseCase, UpdateReviewUs
         var rating = new ReviewRating(requestBody.rating());
         var content = new ReviewContent(requestBody.content());
 
+        ReviewDomain review = ReviewDomain.create(bookId, userId, rating, content);
         ReviewBookDomain book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new ReviewBookNotFoundException(bookId));
         if (!userRepository.existsById(userId)) {
@@ -55,12 +56,12 @@ public class ReviewCommandService implements CreateReviewUseCase, UpdateReviewUs
         if (reviewRepository.existsByBookIdAndUserId(bookId, userId)) {
             throw new AlreadyExistsReviewException(bookId);
         }
-        ReviewDomain created = reviewService.registerReview(userId, rating, content, book);
-        reviewRepository.save(created);
+        reviewService.registerReview(review, book);
+        reviewRepository.save(review);
         bookRepository.update(book);
 
-        return reviewRepository.findById(created.id(), null)
-                .orElseThrow(() -> new ReviewNotFoundException(created.id()));
+        return reviewRepository.findById(review.id(), null)
+                .orElseThrow(() -> new ReviewNotFoundException(review.id()));
     }
 
     @Override
@@ -95,18 +96,18 @@ public class ReviewCommandService implements CreateReviewUseCase, UpdateReviewUs
     public ReviewDto updateReview(String path, String header, ReviewUpdateRequest requestBody) {
         UUID reviewId = UUID.fromString(path);
         UUID requestUserId = UUID.fromString(header);
-        var rating = new ReviewRating(requestBody.rating());
-        var content = new ReviewContent(requestBody.content());
+        var newRating = new ReviewRating(requestBody.rating());
+        var newContent = new ReviewContent(requestBody.content());
 
         ReviewDomain review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ReviewNotFoundException(reviewId));
         ReviewBookDomain book = bookRepository.findById(review.bookId())
                 .orElseThrow(() -> new ReviewBookNotFoundException(review.bookId()));
-        ReviewDomain updated = reviewService.editReview(review, rating, content, requestUserId, book);
+        reviewService.editReview(review, newRating, newContent, requestUserId, book);
         reviewRepository.update(review);
         bookRepository.update(book);
 
-        return reviewRepository.findById(updated.id(), requestUserId)
-                .orElseThrow(() -> new ReviewNotFoundException(updated.id()));
+        return reviewRepository.findById(review.id(), requestUserId)
+                .orElseThrow(() -> new ReviewNotFoundException(review.id()));
     }
 }
