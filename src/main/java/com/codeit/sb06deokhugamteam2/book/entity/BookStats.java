@@ -1,15 +1,14 @@
 package com.codeit.sb06deokhugamteam2.book.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 
 import java.util.UUID;
 
 @Entity
-@Table(name = "BookStats")
+@Table(name = "book_stats")
 @Builder
 @Getter
 @AllArgsConstructor
@@ -17,6 +16,13 @@ import java.util.UUID;
 public class BookStats {
     @Id
     private UUID bookId;
+
+    @Setter
+    @MapsId
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "book_id")
+    @NotFound(action = NotFoundAction.IGNORE)
+    private Book book;
 
     @Setter
     @Builder.Default    // 빌더 사용 시 기본값 설정
