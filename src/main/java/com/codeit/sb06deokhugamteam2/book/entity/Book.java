@@ -54,6 +54,10 @@ public class Book {
     @Setter
     private BookStats bookStats;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Integer version;
+
     @Builder.Default
     @OneToMany(
             mappedBy = "book",

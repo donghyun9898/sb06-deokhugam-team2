@@ -27,13 +27,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -95,6 +95,10 @@ public class BookService {
         return naverSearchClient.bookSearchByIsbn(isbn);
     }
 
+    /*
+    수정 작업은 재시도 하지 않음. 사용자가 확인 후 다시 수정 요청하도록 함.
+    트랜잭션 커밋 시 버전 충돌나면 낙관적 락 예외 throw
+     */
     public BookDto update(UUID bookId, BookUpdateRequest bookUpdateRequest, Optional<BookImageCreateRequest> optionalBookImageCreateRequest) {
         Book findBook = bookRepository.findById(bookId)
                 .orElseThrow(() -> new BookException(
@@ -225,8 +229,15 @@ public class BookService {
         }
     }
 
+    // 마지막 재시도 후 실패 시 낙관적 락 예외 그대로 throw
+    @Retryable(
+            retryFor = {ObjectOptimisticLockingFailureException.class},
+            maxAttempts = 100,
+            backoff = @Backoff(delay = 100)
+    )
     public void deleteSoft(UUID bookId) {
-        bookRepository.deleteSoftById(bookId);
+        log.info("도서 논리 삭제 시도: {}", bookId);
+        bookRepository.deleteById(bookId);
         log.info("도서 논리 삭제 완료: {}", bookId);
     }
 
