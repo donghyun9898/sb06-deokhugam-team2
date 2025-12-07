@@ -119,7 +119,7 @@ public class BookIntegrationTest {
         //when
         when(s3Storage.getThumbnail(any(String.class))).thenReturn(THUMBNAIL_URL);
 
-        MvcResult result = mockMvc.perform(multipart(HttpMethod.POST, "/api/books")
+        MvcResult result = mockMvc.perform(MockMvcRequestBuilders.multipart(HttpMethod.POST, "/api/books")
                 .file(imageData)
                 .file(bookData)
                 .contentType(MediaType.MULTIPART_FORM_DATA)
