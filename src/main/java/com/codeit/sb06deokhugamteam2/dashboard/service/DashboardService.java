@@ -35,10 +35,17 @@ public class DashboardService {
         List<PopularReviewDto> popularReviewDtos = popularReviewDtoSlice.getContent();
         int lastIndex = popularReviewDtos.size() - 1;
 
-        String nextCursor = Long.toString(popularReviewDtos.get(lastIndex).getRank());
-        String nextAfter = popularReviewDtos.get(lastIndex).getCreatedAt().toString();
+        String nextCursor;
+        String nextAfter;
+        if (lastIndex > 0) {
+            nextCursor = Long.toString(popularReviewDtos.get(lastIndex).getRank());
+            nextAfter = popularReviewDtos.get(lastIndex).getCreatedAt().toString();
+        } else {
+            nextCursor = null;
+            nextAfter = null;
+        }
 
-        long totalElements = dashboardRepository.countByRankingTypeAndPeriodTypeAndCreatedAtBetween(RankingType.REVIEW, periodType, startDate, endDate);
+            long totalElements = dashboardRepository.countByRankingTypeAndPeriodTypeAndCreatedAtBetween(RankingType.REVIEW, periodType, startDate, endDate);
 
         CursorPageResponsePopularReviewDto cursorPageResponsePopularReviewDto = CursorPageResponsePopularReviewDto.builder()
                 .nextCursor(nextCursor)
