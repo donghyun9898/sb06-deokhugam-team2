@@ -4,17 +4,16 @@ import com.codeit.sb06deokhugamteam2.book.entity.Book;
 import com.codeit.sb06deokhugamteam2.common.enums.PeriodType;
 import com.codeit.sb06deokhugamteam2.common.enums.RankingType;
 import com.codeit.sb06deokhugamteam2.dashboard.entity.Dashboard;
-import com.codeit.sb06deokhugamteam2.like.adapter.out.entity.ReviewLike;
-import com.codeit.sb06deokhugamteam2.like.adapter.out.entity.ReviewLikeId;
 import com.codeit.sb06deokhugamteam2.review.adapter.out.entity.Review;
 import com.codeit.sb06deokhugamteam2.review.adapter.out.entity.ReviewStat;
 import com.codeit.sb06deokhugamteam2.user.entity.User;
 
-import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 public class DashboardFixture {
 
@@ -27,24 +26,38 @@ public class DashboardFixture {
                 .periodType(PeriodType.DAILY)
                 .rankingType(RankingType.REVIEW)
                 .build();
-        setDashboardCreatedAt(dashboard, Instant.now().minus(1, ChronoUnit.DAYS));
         return dashboard;
     }
 
-    public static User createUser(int count, List<Review> reviews) {
+    public static List<Dashboard> createDashboards(int number, List<UUID> reviewIds) {
+        if (reviewIds.size() < number) {
+            return new ArrayList<>();
+        }
+
+        return IntStream.rangeClosed(1, number)
+                .mapToObj(num -> createDashboard(num, reviewIds.get(num - 1)))
+                .toList();
+    }
+
+    public static User createUser(int count, Review review) {
         User user = User.builder()
                 .email("test" + count + "@naver.com")
                 .comments(null)
-                .reviews(reviews)
+                .reviews(List.of(review))
                 .nickname("nickname" + count)
                 .password("password" + count)
                 .build();
-
-        for (Review review : reviews) {
-            review.user(user);
-        }
-
+        review.user(user);
         return user;
+    }
+
+    public static List<User> createUsers(int number, List<Review> reviews) {
+        if (reviews.size() < number) {
+            return new ArrayList<>();
+        }
+        return IntStream.rangeClosed(1, number)
+                .mapToObj(num -> createUser(num, reviews.get(num - 1)))
+                .toList();
     }
 
     public static Review createReview(int count, Book book) {
@@ -60,16 +73,12 @@ public class DashboardFixture {
         return review;
     }
 
-    public static ReviewLike createReviewLike(Review review, User user) {
-        ReviewLikeId id = new ReviewLikeId();
-        id.reviewId(review.id());
-        id.userId(user.getId());
-        ReviewLike reviewLike = new ReviewLike();
-        reviewLike.user(user);
-        reviewLike.review(review);
-        reviewLike.likedAt(Instant.now().minus(1, ChronoUnit.DAYS));
-        reviewLike.id(id);
-        return reviewLike;
+    public static List<Review> createReviews(int number, List<Book> books) {
+        if (books.size() < number) {
+            return new ArrayList<>();
+        }
+        return IntStream.rangeClosed(1, number)
+                .mapToObj(num -> createReview(num, books.get(num - 1))).toList();
     }
 
     private static ReviewStat createReviewStat(Review review) {
@@ -78,15 +87,5 @@ public class DashboardFixture {
         reviewStat.commentCount(0);
         reviewStat.likeCount(0);
         return reviewStat;
-    }
-
-    private static void setDashboardCreatedAt(Dashboard dashboard, Instant createdAt) {
-        try {
-            Field field = Dashboard.class.getDeclaredField("createdAt");
-            field.setAccessible(true);
-            field.set(dashboard, createdAt);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
     }
 }
