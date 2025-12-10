@@ -11,6 +11,7 @@ import com.codeit.sb06deokhugamteam2.review.adapter.out.entity.Review;
 import com.codeit.sb06deokhugamteam2.user.entity.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.*;
@@ -104,6 +105,11 @@ public class DashboardIntegrationTest {
 
                 assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
             }
-            dashboardRepository.deleteAll();
     }
+
+    @AfterEach
+    void tearDown() {
+        dashboardRepository.deleteAll();
+    }
+
 }
